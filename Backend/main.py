@@ -32,7 +32,7 @@ from torchvision import transforms, models
 
 # ── Paths ──
 CLASSIFIER_WEIGHTS_PATH = "/home/sagemaker-user/NeuroVision/best_weights.pth"
-UNET_WEIGHTS_PATH       = "/home/sagemaker-user/NeuroVision/segmentation"
+UNET_WEIGHTS_PATH       = "/home/sagemaker-user/NeuroVision/segmentation/model.safetensors"
 
 # ── Class names must match the order used during classifier training ──
 CLASS_NAMES = ["Glioma", "Meningioma", "No Tumor", "Pituitary"]
@@ -71,8 +71,19 @@ def load_classifier() -> torch.nn.Module:
 
 
 # U-Net segmentation model
+# smp.from_pretrained only works with HuggingFace repo IDs, not local paths.
+# Instead we rebuild the exact architecture Khoi used, then load the weights
+# directly from the .safetensors file using UNET_WEIGHTS_PATH.
 def load_unet() -> torch.nn.Module:
-    model = smp.from_pretrained(UNET_WEIGHTS_PATH)
+    from safetensors.torch import load_file
+    model = smp.Unet(
+        encoder_name="efficientnet-b0",
+        encoder_weights=None,   # no pretrained weights — we load from file below
+        in_channels=3,
+        classes=1,
+    )
+    state_dict = load_file(UNET_WEIGHTS_PATH)
+    model.load_state_dict(state_dict)
     model.to(DEVICE)
     model.eval()
     print("[startup] U-Net loaded OK")
