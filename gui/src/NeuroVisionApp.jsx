@@ -5,7 +5,8 @@ import BorderGlow from "./BorderGlow";
 // ═══════════════════════════════════════════════════════════════════════════
 //  PIPELINE INTEGRATION POINT
 // ═══════════════════════════════════════════════════════════════════════════
-async function runInference(imageFile) {
+
+// async function runInference(imageFile) {
   // ── UNCOMMENT when backend is ready ──
   // const fd = new FormData();
   // fd.append("image", imageFile);
@@ -18,13 +19,28 @@ async function runInference(imageFile) {
   //   gradcamUrl: d.gradcam_b64  ? `data:image/png;base64,${d.gradcam_b64}`  : null,
   // };
 
-  await new Promise(r => setTimeout(r, 2800));
+async function runInference(imageFile) {
+  const fd = new FormData();
+  fd.append("image", imageFile);
+  const res = await fetch("https://voice-errant-jokingly.ngrok-free.dev/predict", { method:"POST", body:fd });
+  if (!res.ok) throw new Error(res.status);
+  const d = await res.json();
   return {
-    label: "Glioma", confidence: 0.92,
-    probabilities: { Glioma:0.92, Meningioma:0.04, Pituitary:0.03, "No Tumor":0.01 },
-    segMaskUrl: null, gradcamUrl: null,
+    label:       d.label,
+    confidence:  d.confidence,
+    probabilities: d.probabilities,
+    segMaskUrl:  d.seg_mask_b64 ? `data:image/png;base64,${d.seg_mask_b64}` : null,
+    gradcamUrl:  d.gradcam_b64  ? `data:image/png;base64,${d.gradcam_b64}`  : null,
   };
 }
+
+//   await new Promise(r => setTimeout(r, 2800));
+//   return {
+//     label: "Glioma", confidence: 0.92,
+//     probabilities: { Glioma:0.92, Meningioma:0.04, Pituitary:0.03, "No Tumor":0.01 },
+//     segMaskUrl: null, gradcamUrl: null,
+//   };
+// }
 
 // ─── CSS ───────────────────────────────────────────────────────────────────
 const CSS = `
