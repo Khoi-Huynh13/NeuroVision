@@ -1,10 +1,8 @@
-# NeuroVision — Startup & Deployment Guide
+# NeuroVision Startup & Deployment Guide
 
 **Project:** NeuroVision | UTS 42028 Deep Learning | Autumn 2026
 **Team:** Piya Jolly, Patrick Thet Htoo Zaw, Khoi Huynh
 **Stack:** FastAPI (SageMaker GPU) + React/Vite (local) + ngrok (tunnel)
-
----
 
 ## Overview
 
@@ -16,18 +14,14 @@ Every session requires three things to be running simultaneously:
 | ngrok tunnel | SageMaker terminal | Exposes the server to the internet |
 | Vite dev server | Local machine (PowerShell) | Serves the React GUI in the browser |
 
----
-
-## Step 1 — Start the SageMaker Instance
+## Step 1: Start the SageMaker Instance
 
 1. Go to [https://studio.sagemaker.aws](https://studio.sagemaker.aws)
 2. Open your SageMaker Studio domain
 3. Start the instance if it is not already running
 4. Open JupyterLab and open a terminal (File → New → Terminal)
 
----
-
-## Step 2 — Install Dependencies
+## Step 2: Install Dependencies
 
 SageMaker does not persist pip installs between sessions. Run this every time
 before starting the server:
@@ -38,9 +32,7 @@ pip install segmentation-models-pytorch pyngrok --break-system-packages
 
 This takes about 30 seconds. You only need to run it once per session.
 
----
-
-## Step 3 — Start the FastAPI Server (Terminal 1)
+## Step 3: Start the FastAPI Server (Terminal 1)
 
 ```bash
 cd /home/sagemaker-user/NeuroVision/Backend
@@ -65,9 +57,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 
 Leave this terminal running. Do not close it.
 
----
-
-## Step 4 — Start the ngrok Tunnel (Terminal 2)
+## Step 4: Start the ngrok Tunnel (Terminal 2)
 
 Open a second terminal tab in SageMaker and run:
 
@@ -94,9 +84,7 @@ and the GUI will stop being able to reach the backend.
 **Important:** ngrok gives a different URL every session. You must update the
 URL in NeuroVisionApp.jsx each time (see Step 5).
 
----
-
-## Step 5 — Update the Backend URL in the GUI
+## Step 5: Update the Backend URL in the GUI
 
 Open this file on your local machine:
 
@@ -112,9 +100,7 @@ const res = await fetch("https://xxxx-xxxx.ngrok-free.dev/predict", { method:"PO
 
 Replace the URL with the new ngrok URL from Step 4. Save the file.
 
----
-
-## Step 6 — Start the GUI (Local PowerShell)
+## Step 6: Start the GUI (Local PowerShell)
 
 Open PowerShell on your laptop and run:
 
@@ -130,9 +116,7 @@ VITE v8.x.x  ready in xxxms
 ➜  Local:   http://localhost:5173/
 ```
 
----
-
-## Step 7 — Open the GUI in Your Browser
+## Step 7: Open the GUI in Your Browser
 
 Go to:
 
@@ -164,7 +148,7 @@ click Process Image.
 
 ## Troubleshooting
 
-**"Inference failed — check your backend endpoint"**
+**"Inference failed: check your backend endpoint"**
 The ngrok tunnel has died. Go back to Terminal 2 in SageMaker, rerun the
 ngrok command, copy the new URL, update NeuroVisionApp.jsx, and save.
 
@@ -193,8 +177,6 @@ Normal. EfficientNet-B0 and U-Net both load from disk into GPU memory on
 startup. This takes 10-20 seconds. Wait for all three startup lines before
 proceeding.
 
----
-
 ## Shutting Down
 
 1. In the GUI browser tab, you can simply close it
@@ -202,8 +184,6 @@ proceeding.
 3. In SageMaker Terminal 2, press Ctrl+C to kill the ngrok tunnel
 4. In SageMaker Terminal 1, press Ctrl+C to stop the FastAPI server
 5. Stop the SageMaker instance from the AWS console to avoid charges
-
----
 
 ## File Reference
 
@@ -214,8 +194,6 @@ proceeding.
 | best_weights.pth | SageMaker: /home/sagemaker-user/NeuroVision/ | EfficientNet-B0 classifier weights |
 | model.safetensors | SageMaker: /home/sagemaker-user/NeuroVision/segmentation/ | U-Net segmentation weights |
 | NeuroVisionApp.jsx | Local: C:\Users\piyaj\NeuroVision\gui\src\ | React frontend (update ngrok URL here) |
-
----
 
 ## Key URLs
 
