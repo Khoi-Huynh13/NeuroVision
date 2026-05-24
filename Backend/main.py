@@ -208,27 +208,44 @@ def heatmap_to_base64(cam: np.ndarray, original_pil: Image.Image) -> str:
     buf.seek(0)
     return base64.b64encode(buf.read()).decode("utf-8")
 
-
 def mask_to_base64(mask: np.ndarray, original_pil: Image.Image) -> str:
-    """Overlay binary segmentation mask (green) on the original image, return base64 PNG."""
+    """Overlay binary segmentation mask (bright green) on the original image, return base64 PNG."""
     orig = np.array(original_pil.resize((224, 224))).astype(np.float32) / 255.0
 
-    # Green overlay where mask == 1
+    # Check if mask has any positive pixels at all
+    if mask.max() == 0:
+        # No tumour detected in mask — return original greyscale
+        fig, ax = plt.subplots(figsize=(2.24, 2.24), dpi=100)
+        ax.imshow(orig, cmap='gray' if orig.ndim == 2 else None)
+        ax.axis("off")
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight", pad_inches=0)
+        plt.close(fig)
+        buf.seek(0)
+        return base64.b64encode(buf.read()).decode("utf-8")
+
+    # Lower the threshold to catch more of the mask
+    mask_boosted = (mask > 0.3).astype(np.float32)
+
+    # Pure green overlay — no blending, just stamp green where mask is 1
     overlay = orig.copy()
-    overlay[mask == 1, 0] *= 0.5   # dampen red
-    overlay[mask == 1, 1]  = np.clip(overlay[mask == 1, 1] * 0.5 + 0.5, 0, 1)  # boost green
-    overlay[mask == 1, 2] *= 0.5   # dampen blue
+    overlay[mask_boosted == 1, 0] = 0.0    # kill red channel
+    overlay[mask_boosted == 1, 1] = 1.0    # max green channel
+    overlay[mask_boosted == 1, 2] = 0.0    # kill blue channel
+
+    # Blend 30% original + 70% overlay so green is unmissable
+    blended = 0.3 * orig + 0.7 * overlay
+    blended = np.clip(blended, 0, 1)
 
     fig, ax = plt.subplots(figsize=(2.24, 2.24), dpi=100)
-    ax.imshow(overlay)
+    ax.imshow(blended)
     ax.axis("off")
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight", pad_inches=0)
     plt.close(fig)
     buf.seek(0)
     return base64.b64encode(buf.read()).decode("utf-8")
-
-
+    
 # ── 4. FASTAPI APP + /predict ENDPOINT ───────────────────────────────────────
 
 app = FastAPI(title="NeuroVision API")
