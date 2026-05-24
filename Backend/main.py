@@ -115,13 +115,15 @@ UNET_MEAN = np.array([0.485, 0.456, 0.406])
 UNET_STD  = np.array([0.229, 0.224, 0.225])
 
 def preprocess_for_unet(pil_image: Image.Image) -> torch.Tensor:
-    """Resize, normalise with ImageNet stats, convert to CHW float tensor."""
-    img = pil_image.resize((224, 224))
-    img = np.array(img).astype(np.float32) / 255.0
-    img = (img - UNET_MEAN) / UNET_STD
+    """Use exact same preprocessing as training — smp get_preprocessing_fn."""
+    from segmentation_models_pytorch.encoders import get_preprocessing_fn
+    preprocess_input = get_preprocessing_fn('efficientnet-b0', pretrained='imagenet')
+    
+    img = pil_image.resize((256, 256))   # Darabi images are 256×256 not 224×224
+    img = np.array(img).astype(np.float32)
+    img = preprocess_input(img)           # apply smp preprocessing exactly as training
     img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0).float()
     return img.to(DEVICE)
-
 
 # --- 3b. Grad-CAM ---
 
