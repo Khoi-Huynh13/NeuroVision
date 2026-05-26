@@ -1,5 +1,4 @@
-# =============================================================================
-#  NeuroVision — FastAPI Inference Backend
+#  NeuroVision: FastAPI Inference Backend
 #  File: backend/main.py
 #
 #  Sections:
@@ -8,10 +7,9 @@
 #   3. Helper functions (preprocessing, Grad-CAM, encoding)
 #   4. POST /predict endpoint
 #   5. GET /health endpoint (for testing the server is alive)
-# =============================================================================
 
 
-# ── 1. IMPORTS & CONFIG ───────────────────────────────────────────────────────
+# 1. IMPORTS & CONFIG
 
 import io
 import base64
@@ -30,27 +28,26 @@ from PIL import Image
 from torchvision import transforms, models
 
 
-# ── Paths ──
+# Paths
 CLASSIFIER_WEIGHTS_PATH = "/home/sagemaker-user/NeuroVision/best_weights.pth"
 UNET_WEIGHTS_PATH       = "/home/sagemaker-user/NeuroVision/segmentation/model.safetensors"
 
-# ── Class names must match the order used during classifier training ──
+# Class names must match the order used during classifier training
 CLASS_NAMES = ["Glioma", "Meningioma", "No Tumor", "Pituitary"]
 
-# ── Confidence threshold — predictions below this are flagged as low confidence ──
+# Confidence threshold: predictions below this are flagged as low confidence
 CONFIDENCE_THRESHOLD = 0.60
 
-# ── Device ──
+# Device
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"[startup] Running on device: {DEVICE}")
 
 
-# ── 2. MODEL LOADING (runs once at startup) ───────────────────────────────────
+# 2. MODEL LOADING (runs once at startup)
 
 # EfficientNet-B0 classifier
 # Handles both saving styles:
-#   torch.save(model.state_dict(), path)  → loads as state_dict (OrderedDict)
-#   torch.save(model, path)               → loads as full model object
+
 def load_classifier() -> torch.nn.Module:
     checkpoint = torch.load(CLASSIFIER_WEIGHTS_PATH, map_location=DEVICE)
 
@@ -71,14 +68,13 @@ def load_classifier() -> torch.nn.Module:
 
 
 # U-Net segmentation model
-# smp.from_pretrained only works with HuggingFace repo IDs, not local paths.
-# Instead we rebuild the exact architecture Khoi used, then load the weights
-# directly from the .safetensors file using UNET_WEIGHTS_PATH.
+
 def load_unet() -> torch.nn.Module:
     from safetensors.torch import load_file
     model = smp.Unet(
         encoder_name="efficientnet-b0",
-        encoder_weights=None,   # no pretrained weights — we load from file below
+        encoder_depth=5,
+        encoder_weights=None,
         in_channels=3,
         classes=1,
     )
@@ -89,15 +85,14 @@ def load_unet() -> torch.nn.Module:
     print("[startup] U-Net loaded OK")
     return model
 
-
 # Load both models at module import time — they stay in memory for all requests
 classifier = load_classifier()
 unet       = load_unet()
 
 
-# ── 3. HELPER FUNCTIONS ───────────────────────────────────────────────────────
+# 3. HELPER FUNCTIONS
 
-# --- 3a. Image preprocessing ---
+# 3a. Image preprocessing
 
 # Classifier preprocessing — ImageNet normalisation, 224×224
 CLASSIFIER_TRANSFORM = transforms.Compose([
@@ -109,8 +104,7 @@ CLASSIFIER_TRANSFORM = transforms.Compose([
     )
 ])
 
-# U-Net preprocessing — matches Khoi's get_preprocessing_fn('efficientnet-b0')
-# Same ImageNet stats but returns numpy array (smp convention)
+# U-Net preprocessing
 UNET_MEAN = np.array([0.485, 0.456, 0.406])
 UNET_STD  = np.array([0.229, 0.224, 0.225])
 
@@ -125,14 +119,14 @@ def preprocess_for_unet(pil_image: Image.Image) -> torch.Tensor:
     img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0).float()
     return img.to(DEVICE)
 
-# --- 3b. Grad-CAM ---
+# 3b. Grad-CAM
 
 # We hook the last convolutional layer of EfficientNet-B0.
 # EfficientNet's last conv block sits at: model.features[-1]
 # Grad-CAM works by:
 #   1. Doing a forward pass and recording the feature map activations
 #   2. Doing a backward pass from the predicted class score
-#   3. Averaging the gradients across spatial dims → per-channel weights
+#   3. Averaging the gradients across spatial dims -> per-channel weights
 #   4. Weighting the feature maps by those weights and ReLU-ing the result
 #   5. Upsampling back to 224×224
 
@@ -182,11 +176,11 @@ class GradCAM:
         return cam
 
 
-# Instantiate once — the hooks persist across requests
+# Instantiate once the hooks persist across requests
 grad_cam = GradCAM(classifier)
 
 
-# --- 3c. Encoding helpers ---
+# 3c. Encoding helpers
 
 def heatmap_to_base64(cam: np.ndarray, original_pil: Image.Image) -> str:
     """Overlay Grad-CAM heatmap on the original image, return base64 PNG."""
@@ -229,7 +223,7 @@ def mask_to_base64(mask: np.ndarray, original_pil: Image.Image) -> str:
     # Lower the threshold to catch more of the mask
     mask_boosted = (mask > 0.3).astype(np.float32)
 
-    # Pure green overlay — no blending, just stamp green where mask is 1
+    # Pure green overlay no blending, just stamp green where mask is 1
     overlay = orig.copy()
     overlay[mask_boosted == 1, 0] = 0.0    # kill red channel
     overlay[mask_boosted == 1, 1] = 1.0    # max green channel
@@ -248,11 +242,11 @@ def mask_to_base64(mask: np.ndarray, original_pil: Image.Image) -> str:
     buf.seek(0)
     return base64.b64encode(buf.read()).decode("utf-8")
     
-# ── 4. FASTAPI APP + /predict ENDPOINT ───────────────────────────────────────
+# 4. FASTAPI APP + /predict ENDPOINT
 
 app = FastAPI(title="NeuroVision API")
 
-# Allow requests from the React GUI (any origin during dev — lock this down in production)
+# Allow requests from the React GUI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -263,21 +257,21 @@ app.add_middleware(
 
 @app.post("/predict")
 async def predict(image: UploadFile = File(...)):
-    # ── Validate file type ──
+    # Validate file type
     if not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
 
-    # ── Read and decode image ──
+    # Read and decode image
     raw_bytes = await image.read()
     try:
         pil_image = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
     except Exception:
         raise HTTPException(status_code=400, detail="Could not decode image file.")
 
-    # ── Preprocess for classifier ──
+    # Preprocess for classifier
     input_tensor = CLASSIFIER_TRANSFORM(pil_image).unsqueeze(0).to(DEVICE)
 
-    # ── Step 1: Classification ──
+    # Step 1: Classification
     with torch.enable_grad():   # Grad-CAM needs gradients
         logits = classifier(input_tensor)
 
@@ -293,22 +287,31 @@ async def predict(image: UploadFile = File(...)):
 
     low_confidence = confidence < CONFIDENCE_THRESHOLD
 
-    # ── Step 2: Grad-CAM (always runs, regardless of prediction) ──
+    #  Step 2: Grad-CAM (always runs, regardless of prediction)
     cam           = grad_cam.generate(input_tensor, class_idx)
     gradcam_b64   = heatmap_to_base64(cam, pil_image)
 
-    # ── Step 3: Segmentation (only if tumor detected and confidence is sufficient) ──
+    # Step 3: Segmentation (only if tumour detected and confidence is sufficient)
     seg_mask_b64 = None
-
     if label != "No Tumor" and not low_confidence:
         unet_input = preprocess_for_unet(pil_image)
+        print(f"[debug] unet_input min/max: {unet_input.min().item():.4f} / {unet_input.max().item():.4f}")
+        print(f"[debug] unet_input shape: {unet_input.shape}")
+        print(f"[debug] pil_image size: {pil_image.size}")
         with torch.no_grad():
             logits_mask  = unet(unet_input)
             prob_mask    = torch.sigmoid(logits_mask)
-            binary_mask  = (prob_mask > 0.5).float().squeeze().cpu().numpy()
+            binary_mask  = (prob_mask > 0.3).float().squeeze().cpu().numpy()
+
+        # DEBUG
+        print(f"[debug] logits min/max: {logits_mask.min().item():.4f} / {logits_mask.max().item():.4f}")
+        print(f"[debug] prob min/max: {prob_mask.min().item():.4f} / {prob_mask.max().item():.4f}")
+        print(f"[debug] tumour pixels: {binary_mask.sum()}")
+        print(f"[debug] mask shape: {binary_mask.shape}")
+
         seg_mask_b64 = mask_to_base64(binary_mask, pil_image)
 
-    # ── Return JSON response ──
+    # Return JSON response
     return {
         "label":          label,
         "confidence":     round(confidence, 4),
@@ -319,7 +322,7 @@ async def predict(image: UploadFile = File(...)):
     }
 
 
-# ── 5. HEALTH CHECK ───────────────────────────────────────────────────────────
+# 5. HEALTH CHECK
 
 @app.get("/health")
 def health():

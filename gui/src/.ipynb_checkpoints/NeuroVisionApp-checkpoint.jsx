@@ -5,25 +5,172 @@ import BorderGlow from "./BorderGlow";
 // ═══════════════════════════════════════════════════════════════════════════
 //  PIPELINE INTEGRATION POINT
 // ═══════════════════════════════════════════════════════════════════════════
-async function runInference(imageFile) {
-  // ── UNCOMMENT when backend is ready ──
-  // const fd = new FormData();
-  // fd.append("image", imageFile);
-  // const res = await fetch("https://<YOUR_ENDPOINT>/predict", { method:"POST", body:fd });
-  // if (!res.ok) throw new Error(res.status);
-  // const d = await res.json();
-  // return {
-  //   label: d.label, confidence: d.confidence, probabilities: d.probabilities,
-  //   segMaskUrl: d.seg_mask_b64 ? `data:image/png;base64,${d.seg_mask_b64}` : null,
-  //   gradcamUrl: d.gradcam_b64  ? `data:image/png;base64,${d.gradcam_b64}`  : null,
-  // };
 
-  await new Promise(r => setTimeout(r, 2800));
+async function runInference(imageFile) {
+  const fd = new FormData();
+  fd.append("image", imageFile);
+  const res = await fetch("https://voice-errant-jokingly.ngrok-free.dev/predict", { method:"POST", body:fd });
+  if (!res.ok) throw new Error(res.status);
+  const d = await res.json();
   return {
-    label: "Glioma", confidence: 0.92,
-    probabilities: { Glioma:0.92, Meningioma:0.04, Pituitary:0.03, "No Tumor":0.01 },
-    segMaskUrl: null, gradcamUrl: null,
+    label:         d.label,
+    confidence:    d.confidence,
+    probabilities: d.probabilities,
+    segMaskUrl:    d.seg_mask_b64 ? `data:image/png;base64,${d.seg_mask_b64}` : null,
+    gradcamUrl:    d.gradcam_b64  ? `data:image/png;base64,${d.gradcam_b64}`  : null,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DOWNLOAD REPORT — generates a styled PDF summary in a new tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+function downloadReport(results, previewUrl) {
+  if (!results) return;
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-AU", { day:"2-digit", month:"long", year:"numeric" });
+  const timeStr = now.toLocaleTimeString("en-AU", { hour:"2-digit", minute:"2-digit" });
+  const confPct = Math.round(results.confidence * 100);
+  const probs   = results.probabilities || {};
+
+  const probRows = ["Glioma","Meningioma","No Tumor","Pituitary"].map(cls => {
+    const p   = probs[cls] ?? 0;
+    const pct = (p * 100).toFixed(1);
+    const hit = cls === results.label;
+    return `<tr class="${hit ? "hl" : ""}">
+      <td>${cls}</td><td>${pct}%</td>
+      <td><div class="bb"><div class="bf" style="width:${pct}%"></div></div></td>
+    </tr>`;
+  }).join("");
+
+  const gcImg  = results.gradcamUrl
+    ? `<img src="${results.gradcamUrl}" alt="Grad-CAM"/>`
+    : `<div class="ph">Grad-CAM heatmap not available</div>`;
+
+  const segImg = results.segMaskUrl
+    ? `<img src="${results.segMaskUrl}" alt="Segmentation mask"/>`
+    : `<div class="ph">Segmentation not run —<br/>No Tumor prediction or<br/>confidence below 0.60</div>`;
+
+  const oriImg = previewUrl
+    ? `<img src="${previewUrl}" alt="Original MRI"/>`
+    : `<div class="ph">Original scan not available</div>`;
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+<title>NeuroVision Report — ${results.label} — ${dateStr}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e;background:#fff;padding:36px;font-size:13px;line-height:1.6;}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #4361ee;padding-bottom:14px;margin-bottom:20px;}
+.hdr-l h1{font-size:20px;color:#4361ee;letter-spacing:-0.4px;}
+.hdr-l p{font-size:11px;color:#888;margin-top:3px;}
+.hdr-r{text-align:right;font-size:11px;color:#aaa;}
+.disc{background:#fff8e1;border-left:4px solid #ffc857;padding:9px 13px;border-radius:4px;font-size:11px;color:#7a6000;margin-bottom:20px;}
+h2{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#4361ee;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid #eee;}
+section{margin-bottom:24px;}
+.rb{display:flex;align-items:center;gap:20px;background:#f5f5ff;border-radius:8px;padding:14px 18px;margin-bottom:14px;}
+.rl{font-size:26px;font-weight:700;}
+.rp{font-size:11px;font-weight:600;padding:3px 11px;border-radius:100px;background:#4361ee22;color:#4361ee;border:1px solid #4361ee44;}
+.rc{margin-left:auto;text-align:right;}
+.rcn{font-size:30px;font-weight:700;color:#4361ee;}
+.rcl{font-size:11px;color:#888;}
+.cbg{height:6px;background:#eee;border-radius:100px;overflow:hidden;margin-top:6px;}
+.cf{height:100%;background:linear-gradient(90deg,#4361ee,#00d4ff);border-radius:100px;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{text-align:left;padding:7px 11px;background:#f0f0fa;font-weight:600;font-size:11px;color:#555;}
+td{padding:7px 11px;border-bottom:1px solid #f5f5f5;vertical-align:middle;}
+tr.hl td{background:#f5f5ff;font-weight:700;color:#4361ee;}
+.bb{height:5px;background:#eee;border-radius:100px;overflow:hidden;width:150px;}
+.bf{height:100%;background:#4361ee;border-radius:100px;}
+tr.hl .bf{background:linear-gradient(90deg,#4361ee,#00d4ff);}
+.ig{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.ic{display:flex;flex-direction:column;gap:6px;}
+.il{font-size:11px;font-weight:600;color:#555;}
+.ic img{width:100%;border-radius:8px;border:1px solid #eee;}
+.ph{width:100%;aspect-ratio:1;background:#f5f5ff;border-radius:8px;border:1px dashed #ccd;display:flex;align-items:center;justify-content:center;font-size:11px;color:#999;text-align:center;padding:14px;}
+.hint{font-size:11px;color:#aaa;margin-top:4px;}
+.ftr{margin-top:28px;padding-top:14px;border-top:1px solid #eee;font-size:11px;color:#bbb;display:flex;justify-content:space-between;}
+@media print{body{padding:16px;}}
+</style></head><body>
+
+<div class="hdr">
+  <div class="hdr-l">
+    <h1>NeuroVision — Analysis Report</h1>
+    <p>Explainable Brain Tumour Classification and Segmentation</p>
+    <p>UTS 42028 Deep Learning and CNNs · Autumn 2026 · Project 80</p>
+  </div>
+  <div class="hdr-r"><div>${dateStr}</div><div>${timeStr}</div></div>
+</div>
+
+<div class="disc">For educational use only. Not validated for clinical diagnosis or any medical decision-making. Results should be reviewed by a qualified professional.</div>
+
+<section>
+  <h2>Classification result</h2>
+  <div class="rb">
+    <div><div class="rl">${results.label}</div><span class="rp">${results.label.toLowerCase().replace(" ","")}</span></div>
+    <div class="rc">
+      <div class="rcn">${confPct}%</div>
+      <div class="rcl">Model confidence</div>
+      <div class="cbg"><div class="cf" style="width:${confPct}%"></div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>All-class probabilities</h2>
+  <table>
+    <thead><tr><th>Class</th><th>Probability</th><th>Distribution</th></tr></thead>
+    <tbody>${probRows}</tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Visual outputs</h2>
+  <div class="ig">
+    <div class="ic">
+      <div class="il">Original MRI scan</div>
+      ${oriImg}
+    </div>
+    <div class="ic">
+      <div class="il">Grad-CAM explainability</div>
+      ${gcImg}
+      <div class="hint">Warm colours = regions most influential to the prediction. Runs at every inference.</div>
+    </div>
+    <div class="ic">
+      <div class="il">U-Net segmentation mask</div>
+      ${segImg}
+      <div class="hint">Green overlay = predicted tumour boundary. Only generated when confidence ≥ 60%.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Model information</h2>
+  <table><tbody>
+    <tr><td style="color:#888;width:200px">Classifier</td><td>EfficientNet-B0 · transfer learning · ImageNet pretrained</td></tr>
+    <tr><td style="color:#888">Classification dataset</td><td>Sartaj Brain Tumour MRI · 3,264 images · 4 classes</td></tr>
+    <tr><td style="color:#888">Classifier performance</td><td>Weighted F1 0.9693 · Test accuracy 96.94% · ROC-AUC 1.000</td></tr>
+    <tr><td style="color:#888">Segmentation model</td><td>U-Net with EfficientNet-B0 encoder</td></tr>
+    <tr><td style="color:#888">Segmentation dataset</td><td>Darabi Brain Tumour Segmentation · 2,146 images · COCO masks</td></tr>
+    <tr><td style="color:#888">Segmentation performance</td><td>Validation IoU 0.728 · Dice ≈ 0.842</td></tr>
+    <tr><td style="color:#888">Explainability</td><td>Grad-CAM · Selvaraju et al. 2017 · layer: model.features[-1]</td></tr>
+    <tr><td style="color:#888">Confidence threshold</td><td>0.60 · segmentation skipped below this value</td></tr>
+    <tr><td style="color:#888">Inference environment</td><td>AWS SageMaker GPU · NVIDIA T4</td></tr>
+  </tbody></table>
+</section>
+
+<div class="ftr">
+  <span>NeuroVision · UTS 42028 Deep Learning and CNNs · Autumn 2026 · NeuroVision Group</span>
+  <span>Generated ${dateStr} at ${timeStr}</span>
+</div>
+
+<script>window.onload=function(){window.print();}</script>
+</body></html>`;
+
+  const blob = new Blob([html], { type:"text/html" });
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, "_blank");
+  if (win) win.onafterprint = () => URL.revokeObjectURL(url);
 }
 
 // ─── CSS ───────────────────────────────────────────────────────────────────
@@ -31,29 +178,11 @@ const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-
-/* ── Kill Vite's default flex centering that breaks full-width layout ── */
-html,body{
-  background:#05050a;margin:0;padding:0;
-  overflow-x:hidden;width:100%;
-  display:block !important;
-  min-height:100vh;
-}
+html,body{background:#05050a;margin:0;padding:0;overflow-x:hidden;width:100%;display:block !important;min-height:100vh;}
 canvas{display:block;}
-
-:root{
-  --bg:#05050a;--s2:#111120;
-  --bd:rgba(255,255,255,0.07);--bd2:rgba(255,255,255,0.12);
-  --ac:#4361ee;--ac2:#00d4ff;
-  --tx:#e8e8f2;--mu:#6b6b92;
-  --ok:#00c97d;--wn:#ffc857;--er:#ff4d6d;
-  --ff:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;
-  --r:12px;--r2:20px;
-}
-
+:root{--bg:#05050a;--s2:#111120;--bd:rgba(255,255,255,0.07);--bd2:rgba(255,255,255,0.12);--ac:#4361ee;--ac2:#00d4ff;--tx:#e8e8f2;--mu:#6b6b92;--ok:#00c97d;--wn:#ffc857;--er:#ff4d6d;--ff:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;--r:12px;--r2:20px;}
 body{color:var(--tx);font-family:var(--ff);cursor:none;-webkit-font-smoothing:antialiased;}
 @media(hover:none){body{cursor:auto;}.blob,.dot{display:none;}}
-
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
 @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
@@ -63,47 +192,15 @@ body{color:var(--tx);font-family:var(--ff);cursor:none;-webkit-font-smoothing:an
 @keyframes splashLogo{from{opacity:0;transform:scale(0.55);}to{opacity:1;transform:scale(1);}}
 @keyframes splashLine{to{width:160px;}}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(67,97,238,0.45);}50%{box-shadow:0 0 0 18px rgba(67,97,238,0);}}
-@keyframes navShimmer{0%{transform:translateX(-100%);}100%{transform:translateX(100vw);}}
-
 .app{min-height:100vh;width:100%;display:flex;flex-direction:column;position:relative;z-index:1;}
-
-/* Cursor */
 .blob{position:fixed;width:48px;height:48px;border-radius:50%;border:1.5px solid rgba(67,97,238,0.5);pointer-events:none;z-index:9999;top:0;left:0;will-change:transform;mix-blend-mode:screen;}
 .dot{position:fixed;width:6px;height:6px;border-radius:50%;background:rgba(0,212,255,0.9);pointer-events:none;z-index:9999;top:0;left:0;will-change:transform;}
-
-/* ── Liquid glass nav — full width ── */
-.nav{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:14px 40px;
-  width:100%;
-  position:sticky;top:0;z-index:50;
-  /* Glass layers */
-  background:
-    linear-gradient(105deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.06) 100%),
-    rgba(10,10,22,0.35);
-  backdrop-filter:blur(32px) saturate(200%) brightness(1.08);
-  -webkit-backdrop-filter:blur(32px) saturate(200%) brightness(1.08);
-  border-bottom:1px solid rgba(255,255,255,0.07);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.09),
-    0 1px 0 rgba(255,255,255,0.03),
-    0 8px 32px rgba(0,0,0,0.25);
-  overflow:hidden;
-}
-/* Liquid shimmer sweep on nav */
-.nav::after{
-  content:'';
-  position:absolute;top:0;left:0;right:0;
-  height:1px;
-  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.15) 30%,rgba(0,212,255,0.2) 50%,rgba(255,255,255,0.15) 70%,transparent 100%);
-  pointer-events:none;
-}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:14px 40px;width:100%;position:sticky;top:0;z-index:50;background:linear-gradient(105deg,rgba(255,255,255,0.05) 0%,rgba(255,255,255,0.02) 40%,rgba(255,255,255,0.06) 100%),rgba(10,10,22,0.35);backdrop-filter:blur(32px) saturate(200%) brightness(1.08);-webkit-backdrop-filter:blur(32px) saturate(200%) brightness(1.08);border-bottom:1px solid rgba(255,255,255,0.07);box-shadow:inset 0 1px 0 rgba(255,255,255,0.09),0 1px 0 rgba(255,255,255,0.03),0 8px 32px rgba(0,0,0,0.25);overflow:hidden;}
+.nav::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.15) 30%,rgba(0,212,255,0.2) 50%,rgba(255,255,255,0.15) 70%,transparent 100%);pointer-events:none;}
 .nav-logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;letter-spacing:-0.3px;cursor:pointer;color:var(--tx);position:relative;z-index:1;}
 .nav-btn{font-size:13px;color:var(--mu);padding:7px 16px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-family:var(--ff);background:rgba(255,255,255,0.05);cursor:none;transition:border-color 0.2s,color 0.2s,background 0.2s;position:relative;z-index:1;}
 .nav-btn:hover{border-color:rgba(67,97,238,0.5);color:var(--tx);background:rgba(67,97,238,0.1);}
 .nav-btn.act{border-color:rgba(67,97,238,0.5);color:var(--tx);background:rgba(67,97,238,0.12);}
-
-/* Hero */
 .hero{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;padding:64px 24px 56px;text-align:center;width:100%;}
 .tag{font-size:10.5px;font-family:var(--mono);color:var(--ac2);letter-spacing:2px;text-transform:uppercase;border:1px solid rgba(0,212,255,0.18);padding:4px 14px;border-radius:100px;margin-bottom:24px;animation:fadeUp 0.5s ease both;backdrop-filter:blur(8px);background:rgba(0,212,255,0.04);}
 .hero-title{font-size:clamp(34px,4.8vw,62px);font-weight:700;letter-spacing:-1.5px;line-height:1.1;margin-bottom:20px;max-width:680px;color:#ffffff;}
@@ -111,8 +208,6 @@ body{color:var(--tx);font-family:var(--ff);cursor:none;-webkit-font-smoothing:an
 .title-line2{display:block;background:linear-gradient(135deg,#4361ee 0%,#00d4ff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:fadeUp 0.7s 0.65s ease both;opacity:0;}
 .letter{display:inline-block;color:#ffffff;animation:letterIn 0.4s cubic-bezier(0.22,1,0.36,1) both;}
 .hero-sub{font-size:15px;color:var(--mu);line-height:1.75;max-width:460px;margin-bottom:44px;animation:fadeUp 0.5s 1.1s ease both;opacity:0;}
-
-/* Upload card */
 .upload-card{width:100%;max-width:480px;animation:fadeUp 0.5s 1.25s ease both;opacity:0;}
 .drop-zone{border:2px dashed rgba(67,97,238,0.25);border-radius:14px;padding:40px 20px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:none;transition:border-color 0.25s,background 0.25s;}
 .drop-zone:hover,.drop-zone.over{border-color:rgba(0,212,255,0.5);background:rgba(0,212,255,0.03);}
@@ -132,8 +227,6 @@ body{color:var(--tx);font-family:var(--ff);cursor:none;-webkit-font-smoothing:an
 .proc-btn:disabled{opacity:0.35;cursor:not-allowed;}
 .shimmer-btn{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent 30%,rgba(255,255,255,0.15),transparent 70%);background-size:200% 100%;animation:shimmer 2s infinite;}
 input[type="file"]{display:none;}
-
-/* Processing */
 .processing{position:fixed;inset:0;z-index:200;background:rgba(5,5,10,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;animation:fadeIn 0.3s ease;}
 .pulse-ring{width:120px;height:120px;border-radius:50%;border:1.5px solid rgba(67,97,238,0.35);display:flex;align-items:center;justify-content:center;animation:pulse 1.8s ease-in-out infinite;}
 .proc-lbl{font-size:11px;font-family:var(--mono);color:var(--mu);letter-spacing:2.5px;text-transform:uppercase;}
@@ -142,17 +235,12 @@ input[type="file"]{display:none;}
 .step.active{color:var(--ac2);}.step.done{color:var(--ok);}
 .step-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;}
 .step.active .step-dot{animation:blink 0.7s infinite;}
-
-/* Results */
 .results{flex:1;padding:36px 40px;max-width:1060px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:20px;animation:fadeUp 0.4s ease;position:relative;z-index:1;}
 .res-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
 .res-title{font-size:24px;font-weight:600;letter-spacing:-0.4px;}
 .rg{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
 .rg .s2{grid-column:span 2;}
-
-/* Inner card content (used inside BorderGlow) */
 .card-inner{display:flex;flex-direction:column;gap:16px;padding:20px;}
-
 .clbl{font-size:10.5px;font-family:var(--mono);letter-spacing:1.8px;text-transform:uppercase;color:var(--mu);display:flex;align-items:center;gap:8px;}
 .clbl::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--ac2);flex-shrink:0;}
 .mri{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:1;display:flex;align-items:center;justify-content:center;}
@@ -179,8 +267,6 @@ input[type="file"]{display:none;}
 .seg-g{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .seg-c{display:flex;flex-direction:column;gap:8px;}
 .seg-s{font-size:12px;font-family:var(--mono);color:var(--mu);text-align:center;}
-
-/* Histories — scroll reveal */
 .hist{flex:1;padding:48px 40px;max-width:880px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:40px;position:relative;z-index:1;}
 .hist-intro{text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;}
 .hist-title{font-size:30px;font-weight:700;letter-spacing:-0.8px;}
@@ -190,8 +276,6 @@ input[type="file"]{display:none;}
 .team-g{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
 .arch-g{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
 .ds-g{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-
-/* Card inner content for BorderGlow cards */
 .hcard-inner{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:20px;}
 .acard-inner{display:flex;flex-direction:column;gap:10px;padding:20px;}
 .t-av{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:white;}
@@ -203,31 +287,14 @@ input[type="file"]{display:none;}
 .d-title{font-size:14px;font-weight:600;}
 .d-meta{font-size:12px;color:var(--mu);font-family:var(--mono);line-height:1.75;}
 .d-tag{font-size:11px;font-family:var(--mono);color:var(--ac2);background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.18);padding:3px 10px;border-radius:100px;width:fit-content;}
-
-/* Buttons */
 .act-row{display:flex;gap:12px;flex-wrap:wrap;}
 .btn-p{padding:12px 22px;border:none;border-radius:10px;background:var(--ac);color:white;font-size:14px;font-weight:600;font-family:var(--ff);cursor:none;display:flex;align-items:center;gap:8px;transition:background 0.2s,transform 0.15s,box-shadow 0.2s;}
 .btn-p:hover{background:#5572f0;transform:translateY(-1px);box-shadow:0 8px 28px rgba(67,97,238,0.38);}
 .btn-o{padding:12px 22px;border:1px solid var(--bd2);border-radius:10px;background:transparent;color:var(--tx);font-size:14px;font-weight:500;font-family:var(--ff);cursor:none;transition:border-color 0.2s,background 0.2s;}
 .btn-o:hover{border-color:rgba(67,97,238,0.45);background:rgba(67,97,238,0.06);}
 .footer{border-top:1px solid var(--bd);padding:18px 40px;font-size:11px;color:var(--mu);font-family:var(--mono);text-align:center;letter-spacing:0.3px;position:relative;z-index:1;width:100%;}
-
 @media(max-width:900px){.team-g,.arch-g{grid-template-columns:1fr 1fr;}}
-@media(max-width:640px){
-  .nav{padding:12px 16px;}
-  .hero{padding:44px 16px 36px;}
-  .hero-title{font-size:30px;letter-spacing:-0.8px;}
-  .hero-sub{font-size:14px;margin-bottom:32px;}
-  .upload-card{max-width:100%;}
-  .rg{grid-template-columns:1fr;}
-  .rg .s2{grid-column:span 1;}
-  .results,.hist{padding:20px 16px;}
-  .res-header{flex-direction:column;align-items:flex-start;}
-  .team-g,.arch-g,.ds-g{grid-template-columns:1fr;}
-  .act-row{width:100%;}
-  .btn-p,.btn-o{flex:1;justify-content:center;}
-  .footer{padding:16px;}
-}
+@media(max-width:640px){.nav{padding:12px 16px;}.hero{padding:44px 16px 36px;}.hero-title{font-size:30px;letter-spacing:-0.8px;}.hero-sub{font-size:14px;margin-bottom:32px;}.upload-card{max-width:100%;}.rg{grid-template-columns:1fr;}.rg .s2{grid-column:span 1;}.results,.hist{padding:20px 16px;}.res-header{flex-direction:column;align-items:flex-start;}.team-g,.arch-g,.ds-g{grid-template-columns:1fr;}.act-row{width:100%;}.btn-p,.btn-o{flex:1;justify-content:center;}.footer{padding:16px;}}
 `;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -241,7 +308,6 @@ const STEPS = [
 ];
 const pillClass = l => ({Glioma:"p-gl",Meningioma:"p-mn",Pituitary:"p-pt","No Tumor":"p-nt"}[l]??"p-gl");
 
-// Shared BorderGlow props tuned to NeuroVision palette
 const NV_GLOW = {
   borderRadius: 20,
   backgroundColor: "rgba(13,13,24,0.85)",
@@ -252,7 +318,6 @@ const NV_GLOW = {
   coneSpread: 22,
 };
 
-// ─── Scroll-reveal blur wrapper ────────────────────────────────────────────
 function Reveal({ children, delay = 0 }) {
   const ref = useRef();
   const [vis, setVis] = useState(false);
@@ -277,7 +342,6 @@ function Reveal({ children, delay = 0 }) {
   );
 }
 
-// ─── Logo ──────────────────────────────────────────────────────────────────
 function NVLogo({ size = 36 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
@@ -298,7 +362,6 @@ function NVLogo({ size = 36 }) {
   );
 }
 
-// ─── Blob cursor ───────────────────────────────────────────────────────────
 function BlobCursor() {
   const blob = useRef(); const dot = useRef();
   useEffect(() => {
@@ -317,7 +380,6 @@ function BlobCursor() {
   return (<><div ref={blob} className="blob"/><div ref={dot} className="dot"/></>);
 }
 
-// ─── Splash ────────────────────────────────────────────────────────────────
 function Splash({ onDone }) {
   const [out, setOut] = useState(false);
   useEffect(() => {
@@ -335,7 +397,6 @@ function Splash({ onDone }) {
   );
 }
 
-// ─── Title ─────────────────────────────────────────────────────────────────
 function AnimatedTitle() {
   return (
     <h1 className="hero-title">
@@ -351,7 +412,6 @@ function AnimatedTitle() {
   );
 }
 
-// ─── About page with scroll-reveal blur ────────────────────────────────────
 function HistoriesPage() {
   return (
     <div className="hist">
@@ -361,7 +421,6 @@ function HistoriesPage() {
           <p className="hist-desc">An explainable AI system for brain tumour detection and segmentation, built for UTS 42028 Deep Learning and CNNs. Combines a classification pipeline, semantic segmentation, and Grad-CAM visualisations to make model decisions transparent and interpretable.</p>
         </div>
       </Reveal>
-
       <Reveal delay={0.05}>
         <div>
           <div className="sect-label">Team — NeuroVision Group</div>
@@ -382,7 +441,6 @@ function HistoriesPage() {
           </div>
         </div>
       </Reveal>
-
       <Reveal delay={0.05}>
         <div>
           <div className="sect-label">Model Architecture</div>
@@ -404,7 +462,6 @@ function HistoriesPage() {
           </div>
         </div>
       </Reveal>
-
       <Reveal delay={0.05}>
         <div>
           <div className="sect-label">Datasets</div>
@@ -424,7 +481,6 @@ function HistoriesPage() {
           </div>
         </div>
       </Reveal>
-
       <Reveal delay={0.05}>
         <BorderGlow {...NV_GLOW}>
           <div className="acard-inner">
@@ -443,7 +499,6 @@ function HistoriesPage() {
   );
 }
 
-// ─── Main app ──────────────────────────────────────────────────────────────
 export default function NeuroVisionApp() {
   const [splash, setSplash]   = useState(true);
   const [view, setView]       = useState("home");
@@ -487,9 +542,7 @@ export default function NeuroVisionApp() {
       </div>
       <BlobCursor/>
       {splash && <Splash onDone={()=>setSplash(false)}/>}
-
       <div className="app">
-        {/* ── Liquid glass nav — full width ── */}
         <nav className="nav">
           <div className="nav-logo" onClick={reset}>
             <NVLogo size={30}/> NeuroVision
@@ -502,7 +555,6 @@ export default function NeuroVisionApp() {
           </button>
         </nav>
 
-        {/* HOME */}
         {view==="home" && (
           <section className="hero">
             <div className="tag">Deep Learning · Brain MRI Analysis · XAI</div>
@@ -554,7 +606,6 @@ export default function NeuroVisionApp() {
           </section>
         )}
 
-        {/* PROCESSING */}
         {view==="proc" && (
           <div className="processing">
             <div className="pulse-ring"><NVLogo size={44}/></div>
@@ -569,18 +620,16 @@ export default function NeuroVisionApp() {
           </div>
         )}
 
-        {/* RESULTS */}
         {view==="results" && results && (
           <div className="results">
             <div className="res-header">
               <h2 className="res-title">Analysis Results</h2>
               <div className="act-row">
-                <button className="btn-p">⬇ Download Report</button>
+                <button className="btn-p" onClick={() => downloadReport(results, preview)}>⬇ Download Report</button>
                 <button className="btn-o" onClick={reset}>Run Another Scan</button>
               </div>
             </div>
             <div className="rg">
-              {/* Grad-CAM */}
               <BorderGlow {...NV_GLOW}>
                 <div className="card-inner">
                   <div className="clbl">Explainability · Grad-CAM</div>
@@ -599,7 +648,6 @@ export default function NeuroVisionApp() {
                 </div>
               </BorderGlow>
 
-              {/* Classification */}
               <BorderGlow {...NV_GLOW}>
                 <div className="card-inner">
                   <div className="clbl">Tumour Classification</div>
@@ -629,7 +677,6 @@ export default function NeuroVisionApp() {
                 </div>
               </BorderGlow>
 
-              {/* Segmentation */}
               <div className="s2">
                 <BorderGlow {...NV_GLOW}>
                   <div className="card-inner">

@@ -2,9 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Aurora from "./Aurora";
 import BorderGlow from "./BorderGlow";
 
-// ═══════════════════════════════════════════════════════════════════════════
 //  PIPELINE INTEGRATION POINT
-// ═══════════════════════════════════════════════════════════════════════════
 
 async function runInference(imageFile) {
   const fd = new FormData();
@@ -21,9 +19,7 @@ async function runInference(imageFile) {
   };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  DOWNLOAD REPORT — generates a styled PDF summary in a new tab
-// ═══════════════════════════════════════════════════════════════════════════
+//  DOWNLOAD REPORT: generates a styled PDF summary in a new tab
 
 function downloadReport(results, previewUrl) {
   if (!results) return;
@@ -173,7 +169,7 @@ tr.hl .bf{background:linear-gradient(90deg,#4361ee,#00d4ff);}
   if (win) win.onafterprint = () => URL.revokeObjectURL(url);
 }
 
-// ─── CSS ───────────────────────────────────────────────────────────────────
+// CSS
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -297,7 +293,7 @@ input[type="file"]{display:none;}
 @media(max-width:640px){.nav{padding:12px 16px;}.hero{padding:44px 16px 36px;}.hero-title{font-size:30px;letter-spacing:-0.8px;}.hero-sub{font-size:14px;margin-bottom:32px;}.upload-card{max-width:100%;}.rg{grid-template-columns:1fr;}.rg .s2{grid-column:span 1;}.results,.hist{padding:20px 16px;}.res-header{flex-direction:column;align-items:flex-start;}.team-g,.arch-g,.ds-g{grid-template-columns:1fr;}.act-row{width:100%;}.btn-p,.btn-o{flex:1;justify-content:center;}.footer{padding:16px;}}
 `;
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+// Helpers
 const TUMOR_CLASSES = ["Glioma","Meningioma","Pituitary","No Tumor"];
 const STEPS = [
   "Preprocessing scan...",
