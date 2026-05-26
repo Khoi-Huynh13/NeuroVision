@@ -3,11 +3,7 @@
 
 UTS 42028 Deep Learning and Convolutional Neural Networks | Autumn 2026 | Project 80
 
-**Team:** 
-
-Piya Jolly (24505137) 
-Patrick Thet Htoo Zaw (24920819) 
-Khoi Huynh (24902037)  
+**Team:** Piya Jolly (24505137), Patrick Thet Htoo Zaw (24920819), Khoi Huynh (24902037)  
 ---
 
 ## Overview
