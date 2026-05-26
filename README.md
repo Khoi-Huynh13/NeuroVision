@@ -3,11 +3,15 @@
 
 UTS 42028 Deep Learning and Convolutional Neural Networks | Autumn 2026 | Project 80
 
-**Team:** Piya Jolly (24505137) · Patrick Thet Htoo Zaw (24920819) · Khoi Huynh (24902037)  
+**Team:** 
+
+Piya Jolly (24505137) 
+Patrick Thet Htoo Zaw (24920819) 
+Khoi Huynh (24902037)  
 ---
 
 ## Overview
-NeuroVision is an end-to-end brain tumour analysis system that classifies MRI scans into four classes (Glioma, Meningioma, Pituitary, No Tumor), generates Grad-CAM explainability heatmaps, and produces U-Net segmentation masks — all delivered through a React web interface backed by a FastAPI inference server.
+NeuroVision is an end-to-end brain tumour analysis system that classifies MRI scans into four classes (Glioma, Meningioma, Pituitary, No Tumor), generates Grad-CAM explainability heatmaps, and produces U-Net segmentation masks. All delivered through a React web interface backed by a FastAPI inference server.
 
 ---
 
