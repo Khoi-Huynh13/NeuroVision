@@ -12,25 +12,52 @@ NeuroVision is an end-to-end brain tumour analysis system that classifies MRI sc
 ---
 
 ## Repository Structure
+
+```text
 NeuroVision/
 ├── Backend/
-│   ├── main.py              # FastAPI inference server
-│   └── Requirements.txt     # Python dependencies
+│   ├── main.py
+│   └── Requirements.txt
+├── archive/
+│   ├── custom_cnn_best.pth
+│   ├── custom_cnn_confusion_matrix.png
+│   ├── custom_cnn_roc_curves.png
+│   ├── custom_cnn_training_curves.png
+│   ├── efficientnetB0_weights.txt
+│   └── Preprocessing.ipynb
 ├── classification/
-│   ├── custom_cnn.ipynb     # Custom CNN (Piya)
-│   ├── ResNet50.ipynb       # ResNet50 (Patrick)
-│   └── EfficientNet-B0.ipynb # EfficientNet-B0 (Khoi)
+│   ├── custom_cnn.ipynb
+│   ├── EfficientNet-B0.ipynb
+│   └── ResNet50.ipynb
 ├── explainability/
-│   └── gradcam.ipynb        # Grad-CAM implementation
-├── segmentation/
-│   ├── Unet.ipynb           # U-Net training
-│   └── model.safetensors    # Trained U-Net weights
+│   ├── gradcam.ipynb
+│   ├── gradcam_glioma.png
+│   ├── gradcam_meningioma.png
+│   ├── gradcam_no_tumor.png
+│   ├── gradcam_pituitary.png
+│   └── gradcam_sample_glioma.png
 ├── gui/
 │   └── src/
-│       └── NeuroVisionApp.jsx # React frontend
-├── best_weights.pth         # EfficientNet-B0 classifier weights
-├── split_indices.json       # Shared train/val/test split
-└── STARTUP_GUIDE.md         # How to run the system
+│       ├── App.css
+│       ├── App.jsx
+│       ├── Aurora.css
+│       ├── Aurora.jsx
+│       ├── BorderGlow.css
+│       ├── BorderGlow.jsx
+│       ├── NeuroVisionApp.jsx
+│       ├── index.css
+│       └── main.jsx
+├── segmentation/
+│   ├── Unet.ipynb
+│   ├── README.md
+│   └── model.safetensors
+├── .gitignore
+├── README.md
+├── STARTUP_GUIDE.md
+├── best_weights.pth
+├── Dataset.txt
+└── split_indices.json
+```
 
 ---
 
@@ -47,14 +74,14 @@ NeuroVision/
 ---
 
 ## Datasets
-- **Dataset 1:** [Sartaj Brain Tumour MRI](https://www.kaggle.com/datasets/sartajbhuvaji/brain-tumor-classification-mri) — 3,264 images, 4 classes
-- **Dataset 2:** [Darabi Brain Tumour Segmentation](https://www.kaggle.com/datasets/masoudnickparvar/brain-tumor-mri-dataset) — 2,146 images, COCO polygon masks
+- **Dataset 1:** [Sartaj Brain Tumour MRI](https://www.kaggle.com/datasets/sartajbhuvaji/brain-tumor-classification-mri): 3,264 images, 4 classes
+- **Dataset 2:** [Darabi Brain Tumour Segmentation](https://www.kaggle.com/datasets/masoudnickparvar/brain-tumor-mri-dataset): 2,146 images, COCO polygon masks
 
 ---
 
 ## System Architecture
 - **Classifier:** EfficientNet-B0 (transfer learning, ImageNet pretrained)
-- **Explainability:** Grad-CAM (Selvaraju et al. 2017) — runs at every inference
+- **Explainability:** Grad-CAM (Selvaraju et al. 2017): runs at every inference
 - **Segmentation:** U-Net with EfficientNet-B0 encoder
 - **Backend:** FastAPI on AWS SageMaker GPU (NVIDIA T4)
 - **Frontend:** React + Vite
@@ -66,14 +93,14 @@ See [STARTUP_GUIDE.md](STARTUP_GUIDE.md) for full setup instructions.
 
 **Quick start:**
 ```bash
-# SageMaker Terminal 1 — start backend
+# SageMaker Terminal 1: start backend
 pip install segmentation-models-pytorch --break-system-packages
 cd Backend
 uvicorn main:app --host 0.0.0.0 --port 8000
 
-# SageMaker Terminal 2 — expose via ngrok
+# SageMaker Terminal 2: expose via ngrok
 python3 -c "from pyngrok import ngrok; t = ngrok.connect(8000); print(t.public_url)"
 
-# Local — run GUI
+# Local: run GUI
 cd gui && npm run dev
 ```
